@@ -38,7 +38,7 @@ from calibre.library.comments import sanitize_comments_html
 from calibre.utils.cleantext import clean_ascii_chars
 from calibre.utils.localization import canonicalize_lang
 
-import calibre_plugins.goodreads.config as cfg
+import calibre_plugins.shelfari.config as cfg
 
 __author__ = "Casey Duquette"
 __copyright__ = "Copyright 2013"

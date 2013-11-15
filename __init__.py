@@ -50,36 +50,36 @@ __email__ = ""
 __url__ = "http://github.com/beeftornado/"
 
 
-class Goodreads(Source):
+class Shelfari(Source):
 
-    name = 'Goodreads'
-    description = _('Downloads metadata and covers from Goodreads')
-    author = 'Grant Drake'
-    version = (1, 1, 7)
+    name = 'Shelfari'
+    description = _('Downloads metadata and covers from Shelfari')
+    author = 'Casey Duquette'
+    version = (0, 0, 1)
     minimum_calibre_version = (0, 8, 0)
 
     capabilities = frozenset(['identify', 'cover'])
-    touched_fields = frozenset(['title', 'authors', 'identifier:goodreads',
+    touched_fields = frozenset(['title', 'authors', 'identifier:shelfari',
         'identifier:isbn', 'rating', 'comments', 'publisher', 'pubdate',
         'tags', 'series', 'languages'])
     has_html_comments = True
     supports_gzip_transfer_encoding = True
 
-    BASE_URL = 'http://www.goodreads.com'
+    BASE_URL = 'http://www.shelfari.com'
     MAX_EDITIONS = 5
 
     def config_widget(self):
         '''
         Overriding the default configuration screen for our own custom configuration
         '''
-        from calibre_plugins.goodreads.config import ConfigWidget
+        from calibre_plugins.shelfari.config import ConfigWidget
         return ConfigWidget(self)
 
     def get_book_url(self, identifiers):
-        goodreads_id = identifiers.get('goodreads', None)
-        if goodreads_id:
-            return ('goodreads', goodreads_id,
-                    '%s/book/show/%s' % (Goodreads.BASE_URL, goodreads_id))
+        shelfari_id = identifiers.get('shelfari', None)
+        if shelfari_id:
+            return ('shelfari', shelfari_id,
+                    '%s/books/%s' % (Shelfari.BASE_URL, shelfari_id))
 
     def create_query(self, log, title=None, authors=None, identifiers={}):
 
@@ -103,17 +103,17 @@ class Goodreads(Source):
             return None
         if isinstance(q, unicode):
             q = q.encode('utf-8')
-        return Goodreads.BASE_URL + '/search?' + q
+        return Shelfari.BASE_URL + '/search?' + q
 
     def get_cached_cover_url(self, identifiers):
         url = None
-        goodreads_id = identifiers.get('goodreads', None)
-        if goodreads_id is None:
+        shelfari_id = identifiers.get('shelfari', None)
+        if shelfari_id is None:
             isbn = identifiers.get('isbn', None)
             if isbn is not None:
-                goodreads_id = self.cached_isbn_to_identifier(isbn)
-        if goodreads_id is not None:
-            url = self.cached_identifier_to_cover_url(goodreads_id)
+                shelfari_id = self.cached_isbn_to_identifier(isbn)
+        if shelfari_id is not None:
+            url = self.cached_identifier_to_cover_url(shelfari_id)
 
         return url
 
@@ -124,14 +124,14 @@ class Goodreads(Source):
         match is found with identifiers.
         '''
         matches = []
-        # Unlike the other metadata sources, if we have a goodreads id then we
-        # do not need to fire a "search" at Goodreads.com. Instead we will be
+        # Unlike the other metadata sources, if we have a shelfari id then we
+        # do not need to fire a "search" at Shelfari.com. Instead we will be
         # able to go straight to the URL for that book.
-        goodreads_id = identifiers.get('goodreads', None)
+        shelfari_id = identifiers.get('shelfari', None)
         isbn = check_isbn(identifiers.get('isbn', None))
         br = self.browser
-        if goodreads_id:
-            matches.append('%s/book/show/%s' % (Goodreads.BASE_URL, goodreads_id))
+        if shelfari_id:
+            matches.append('%s/book/show/%s' % (Shelfari.BASE_URL, shelfari_id))
         else:
             query = self.create_query(log, title=title, authors=authors,
                     identifiers=identifiers)
@@ -144,7 +144,7 @@ class Goodreads(Source):
                 if isbn:
                     # Check whether we got redirected to a book page for ISBN searches.
                     # If we did, will use the url.
-                    # If we didn't then treat it as no matches on Goodreads
+                    # If we didn't then treat it as no matches on Shelfari
                     location = response.geturl()
                     if '/book/show/' in location:
                         log.info('ISBN match location: %r' % location)
@@ -166,7 +166,7 @@ class Goodreads(Source):
                         return
                     root = fromstring(clean_ascii_chars(raw))
                 except:
-                    msg = 'Failed to parse goodreads page for query: %r' % query
+                    msg = 'Failed to parse shelfari page for query: %r' % query
                     log.exception(msg)
                     return msg
                 # Now grab the first value from the search results, provided the
@@ -185,7 +185,7 @@ class Goodreads(Source):
             log.error('No matches found with query: %r' % query)
             return
 
-        from calibre_plugins.goodreads.worker import Worker
+        from calibre_plugins.shelfari.worker import Worker
         workers = [Worker(url, result_queue, br, log, i, self) for i, url in
                 enumerate(matches)]
 
@@ -238,7 +238,7 @@ class Goodreads(Source):
 
         first_result_url_node = root.xpath('//table[@class="tableList"]/tr/td[1]/a[2]/@href')
         if first_result_url_node:
-            import calibre_plugins.goodreads.config as cfg
+            import calibre_plugins.shelfari.config as cfg
             c = cfg.plugin_prefs[cfg.STORE_NAME]
             if c[cfg.KEY_GET_EDITIONS]:
                 # We need to read the editions for this book and get the matches from those
@@ -248,13 +248,13 @@ class Goodreads(Source):
                         # There is no point in doing the extra hop
                         log.info('Not scanning editions as only one edition found')
                         break
-                    #editions_url = Goodreads.BASE_URL + editions_node.get('href')
-                    editions_url = Goodreads.BASE_URL + editions_text.getparent().get('href')
+                    #editions_url = Shelfari.BASE_URL + editions_node.get('href')
+                    editions_url = Shelfari.BASE_URL + editions_text.getparent().get('href')
                     if '/work/editions/' in editions_url:
                         log.info('Examining up to %s: %s' % (editions_text, editions_url))
                         self._parse_editions_for_book(log, editions_url, matches, timeout, title_tokens)
                         return
-            result_url = Goodreads.BASE_URL + first_result_url_node[0]
+            result_url = Shelfari.BASE_URL + first_result_url_node[0]
             matches.append(result_url)
 
     def _parse_editions_for_book(self, log, editions_url, matches, timeout, title_tokens):
@@ -283,7 +283,7 @@ class Goodreads(Source):
             #open('E:\\s.html', 'wb').write(raw)
             root = fromstring(clean_ascii_chars(raw))
         except:
-            msg = 'Failed to parse goodreads page for query: %r' % editions_url
+            msg = 'Failed to parse shelfari page for query: %r' % editions_url
             log.exception(msg)
             return msg
 
@@ -298,15 +298,15 @@ class Goodreads(Source):
                         log.info('Skipping audio edition: %s' % title)
                         valid_title = False
                         if first_non_valid is None:
-                            first_non_valid = Goodreads.BASE_URL + div_link.get('href')
+                            first_non_valid = Shelfari.BASE_URL + div_link.get('href')
                         break
                 if valid_title:
                     # Verify it is not a foreign language edition
                     if not ismatch(title):
                         log.info('Skipping alternate title:', title)
                         continue
-                    matches.append(Goodreads.BASE_URL + div_link.get('href'))
-                    if len(matches) >= Goodreads.MAX_EDITIONS:
+                    matches.append(Shelfari.BASE_URL + div_link.get('href'))
+                    if len(matches) >= Shelfari.MAX_EDITIONS:
                         return
         if len(matches) == 0 and first_non_valid:
             # We have found only audio editions. In which case return the first match
@@ -357,7 +357,7 @@ if __name__ == '__main__': # tests
     from calibre.ebooks.metadata.sources.test import (test_identify_plugin,
             title_test, authors_test, series_test)
 
-    test_identify_plugin(Goodreads.name,
+    test_identify_plugin(Shelfari.name,
         [
             (# A book with an ISBN
                 {'identifiers':{'isbn': '9780385340588'},
@@ -381,8 +381,8 @@ if __name__ == '__main__': # tests
                  series_test('Skulduggery Pleasant', 2.0)]
             ),
 
-            (# A book with a Goodreads id
-                {'identifiers':{'goodreads': '6977769'},
+            (# A book with a Shelfari id
+                {'identifiers':{'shelfari': '6977769'},
                     'title':'61 Hours', 'authors':['Lee Child']},
                 [title_test('61 Hours', exact=True),
                  authors_test(['Lee Child']),

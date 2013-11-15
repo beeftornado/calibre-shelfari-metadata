@@ -38,7 +38,7 @@ from calibre.gui2.complete import MultiCompleteLineEdit
 from calibre.gui2.metadata.config import ConfigWidget as DefaultConfigWidget
 from calibre.utils.config import JSONConfig
 
-from calibre_plugins.goodreads.common_utils import ReadOnlyTableWidgetItem
+from calibre_plugins.shelfari.common_utils import ReadOnlyTableWidgetItem
 
 __author__ = "Casey Duquette"
 __copyright__ = "Copyright 2013"
