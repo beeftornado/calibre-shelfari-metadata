@@ -39,6 +39,7 @@ from calibre.ebooks.metadata.sources.base import Source
 from calibre.utils.icu import lower
 from calibre.utils.cleantext import clean_ascii_chars
 
+import calibre_plugins.shelfari.config as cfg
 from calibre_plugins.shelfari.worker import Worker
 
 __author__ = "Casey Duquette"
@@ -218,8 +219,8 @@ class Shelfari(Source):
         return None
 
     def _parse_search_results(self, log, orig_title, orig_authors, root, matches, timeout):
-        first_result = root.xpath('//table[@class="tableList"]/tr/td[2]')
-        if not first_result:
+        results = root.xpath('//ol[@class="book_results"]/li')
+        if not results:
             return
         title_tokens = list(self.get_title_tokens(orig_title))
         author_tokens = list(self.get_author_tokens(orig_authors))
@@ -240,89 +241,97 @@ class Shelfari(Source):
             if not author_tokens: amatch = True
             return match and amatch
 
-        title = first_result[0].xpath('./a')[0].text_content().strip()
-        authors = first_result[0].xpath('./span[@itemprop="author"]/a/span')[0].text_content().strip().split(',')
-        if not ismatch(title, authors):
-            log.error('Rejecting as not close enough match: %s %s' % (title, authors))
-            return
+        for result in results:
+            # Shelfari id that can be used to go directly to book
+            shelfari_id = result.get('id', None)
+            if shelfari_id:
+                shelfari_id = shelfari.replace("SR", "")
+            
+            # Grab title and author
+            title = result.xpath('./div[@class="text"]/h3/a')[0].text_content().strip()
+            authors = result.xpath('./div[@class="text"]/a')[0].text_content().strip().split(',')
+            if not ismatch(title, authors):
+                log.error('Rejecting as not close enough match: %s %s' % (title, authors))
+                continue
 
-        first_result_url_node = root.xpath('//table[@class="tableList"]/tr/td[1]/a[2]/@href')
-        if first_result_url_node:
-            import calibre_plugins.shelfari.config as cfg
-            c = cfg.plugin_prefs[cfg.STORE_NAME]
-            if c[cfg.KEY_GET_EDITIONS]:
-                # We need to read the editions for this book and get the matches from those
-                for editions_text in root.xpath('//table[@class="tableList"]/tr/td[2]/span/a[@href]/text()'):
-                    #editions_text = tostring(editions_node, method='text').strip()
-                    if editions_text == '1 edition':
-                        # There is no point in doing the extra hop
-                        log.info('Not scanning editions as only one edition found')
-                        break
-                    #editions_url = Shelfari.BASE_URL + editions_node.get('href')
-                    editions_url = Shelfari.BASE_URL + editions_text.getparent().get('href')
-                    if '/work/editions/' in editions_url:
-                        log.info('Examining up to %s: %s' % (editions_text, editions_url))
-                        self._parse_editions_for_book(log, editions_url, matches, timeout, title_tokens)
-                        return
-            result_url = Shelfari.BASE_URL + first_result_url_node[0]
-            matches.append(result_url)
+            # Get the url for the book
+            url_node = root.xpath('./div[@class="text"]/h3/a/@href')
+            if url_node:
+                c = cfg.plugin_prefs[cfg.STORE_NAME]
+                if c[cfg.KEY_GET_EDITIONS]:
+                    log.info("Getting editions is not currently supported")
+                    # We need to read the editions for this book and get the matches from those
+                    # for editions_text in root.xpath('//table[@class="tableList"]/tr/td[2]/span/a[@href]/text()'):
+                    #     #editions_text = tostring(editions_node, method='text').strip()
+                    #     if editions_text == '1 edition':
+                    #         # There is no point in doing the extra hop
+                    #         log.info('Not scanning editions as only one edition found')
+                    #         break
+                    #     #editions_url = Shelfari.BASE_URL + editions_node.get('href')
+                    #     editions_url = Shelfari.BASE_URL + editions_text.getparent().get('href')
+                    #     if '/work/editions/' in editions_url:
+                    #         log.info('Examining up to %s: %s' % (editions_text, editions_url))
+                    #         self._parse_editions_for_book(log, editions_url, matches, timeout, title_tokens)
+                    #         return
+                result_url = url_node[0]
+                matches.append(result_url)
 
-    def _parse_editions_for_book(self, log, editions_url, matches, timeout, title_tokens):
-
-        def ismatch(title):
-            title = lower(title)
-            match = not title_tokens
-            for t in title_tokens:
-                if lower(t) in title:
-                    match = True
-                    break
-            return match
-
-        br = self.browser
-        try:
-            raw = br.open_novisit(editions_url, timeout=timeout).read().strip()
-        except Exception as e:
-            err = 'Failed identify editions query: %r' % editions_url
-            log.exception(err)
-            return as_unicode(e)
-        try:
-            raw = raw.decode('utf-8', errors='replace')
-            if not raw:
-                log.error('Failed to get raw result for query: %r' % editions_url)
-                return
-            #open('E:\\s.html', 'wb').write(raw)
-            root = fromstring(clean_ascii_chars(raw))
-        except:
-            msg = 'Failed to parse shelfari page for query: %r' % editions_url
-            log.exception(msg)
-            return msg
-
-        first_non_valid = None
-        for div_link in root.xpath('//div[@class="editionData"]/div[1]/a[@class="bookTitle"]'):
-            title = tostring(div_link, 'text').strip().lower()
-            if title:
-                # Verify it is not an audio edition
-                valid_title = True
-                for exclusion in ['(audio cd)', '(compact disc)', '(audio cassette)']:
-                    if exclusion in title:
-                        log.info('Skipping audio edition: %s' % title)
-                        valid_title = False
-                        if first_non_valid is None:
-                            first_non_valid = Shelfari.BASE_URL + div_link.get('href')
-                        break
-                if valid_title:
-                    # Verify it is not a foreign language edition
-                    if not ismatch(title):
-                        log.info('Skipping alternate title:', title)
-                        continue
-                    matches.append(Shelfari.BASE_URL + div_link.get('href'))
-                    if len(matches) >= Shelfari.MAX_EDITIONS:
-                        return
-        if len(matches) == 0 and first_non_valid:
-            # We have found only audio editions. In which case return the first match
-            # rather than tell the user there are no matches.
-            log.info('Choosing the first audio edition as no others found.')
-            matches.append(first_non_valid)
+    # def _parse_editions_for_book(self, log, editions_url, matches, timeout, title_tokens):
+    # 
+    #     def ismatch(title):
+    #         title = lower(title)
+    #         match = not title_tokens
+    #         for t in title_tokens:
+    #             if lower(t) in title:
+    #                 match = True
+    #                 break
+    #         return match
+    # 
+    #     br = self.browser
+    #     try:
+    #         raw = br.open_novisit(editions_url, timeout=timeout).read().strip()
+    #     except Exception as e:
+    #         err = 'Failed identify editions query: %r' % editions_url
+    #         log.exception(err)
+    #         return as_unicode(e)
+    #     try:
+    #         raw = raw.decode('utf-8', errors='replace')
+    #         if not raw:
+    #             log.error('Failed to get raw result for query: %r' % editions_url)
+    #             return
+    #         #open('E:\\s.html', 'wb').write(raw)
+    #         root = fromstring(clean_ascii_chars(raw))
+    #     except:
+    #         msg = 'Failed to parse shelfari page for query: %r' % editions_url
+    #         log.exception(msg)
+    #         return msg
+    # 
+    #     first_non_valid = None
+    #     for div_link in root.xpath('//div[@class="editionData"]/div[1]/a[@class="bookTitle"]'):
+    #         title = tostring(div_link, 'text').strip().lower()
+    #         if title:
+    #             # Verify it is not an audio edition
+    #             valid_title = True
+    #             for exclusion in ['(audio cd)', '(compact disc)', '(audio cassette)']:
+    #                 if exclusion in title:
+    #                     log.info('Skipping audio edition: %s' % title)
+    #                     valid_title = False
+    #                     if first_non_valid is None:
+    #                         first_non_valid = Shelfari.BASE_URL + div_link.get('href')
+    #                     break
+    #             if valid_title:
+    #                 # Verify it is not a foreign language edition
+    #                 if not ismatch(title):
+    #                     log.info('Skipping alternate title:', title)
+    #                     continue
+    #                 matches.append(Shelfari.BASE_URL + div_link.get('href'))
+    #                 if len(matches) >= Shelfari.MAX_EDITIONS:
+    #                     return
+    #     if len(matches) == 0 and first_non_valid:
+    #         # We have found only audio editions. In which case return the first match
+    #         # rather than tell the user there are no matches.
+    #         log.info('Choosing the first audio edition as no others found.')
+    #         matches.append(first_non_valid)
 
     def download_cover(self, log, result_queue, abort,
             title=None, authors=None, identifiers={}, timeout=30):
