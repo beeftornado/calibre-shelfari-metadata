@@ -1,12 +1,31 @@
 #!/usr/bin/env python
-# vim:fileencoding=UTF-8:ts=4:sw=4:sta:et:sts=4:ai
+
+# The MIT License (MIT)
+
+# Copyright (c) 2013 Casey Duquette
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+"""  """
+
 from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
-
-__license__   = 'GPL v3'
-__copyright__ = '2013, Casey Duquette'
-__contributers__ = "Grant Drake <grant.drake@gmail.com>"
-__docformat__ = 'restructuredtext en'
 
 import copy
 from functools import partial
@@ -20,6 +39,17 @@ from calibre.gui2.metadata.config import ConfigWidget as DefaultConfigWidget
 from calibre.utils.config import JSONConfig
 
 from calibre_plugins.goodreads.common_utils import ReadOnlyTableWidgetItem
+
+__author__ = "Casey Duquette"
+__copyright__ = "Copyright 2013"
+__credits__ = ["Grant Drake <grant.drake@gmail.com>"]
+
+__license__ = "MIT"
+__version__ = ""
+__maintainer__ = "Casey Duquette"
+__email__ = ""
+__url__ = "http://github.com/beeftornado/"
+
 
 STORE_NAME = 'Options'
 KEY_GET_ALL_AUTHORS = 'getAllAuthors'
@@ -109,7 +139,7 @@ class GenreTagMappingsTableWidget(QTableWidget):
         self.clear()
         self.setAlternatingRowColors(True)
         self.setRowCount(len(tag_mappings))
-        header_labels = ['Goodreads Genre', 'Maps to Calibre Tag(s)']
+        header_labels = ['Shelfari Genre', 'Maps to Calibre Tag(s)']
         self.setColumnCount(len(header_labels))
         self.setHorizontalHeaderLabels(header_labels)
         self.verticalHeader().setDefaultSectionSize(24)
@@ -179,7 +209,7 @@ class ConfigWidget(DefaultConfigWidget):
         all_tags = get_current_db().all_tags()
 
         self.gb.setMaximumHeight(80)
-        genre_group_box = QGroupBox('Goodreads genre to calibre tag mappings', self)
+        genre_group_box = QGroupBox('Shelfari genre to calibre tag mappings', self)
         self.l.addWidget(genre_group_box, self.l.rowCount(), 0, 1, 2)
         genre_group_box_layout = QVBoxLayout()
         genre_group_box.setLayout(genre_group_box_layout)
@@ -226,22 +256,22 @@ class ConfigWidget(DefaultConfigWidget):
 
         self.get_editions_checkbox = QCheckBox('Scan multiple editions for title/author searches (slower)', self)
         self.get_editions_checkbox.setToolTip('When checked will perform an additional search to scan the top ranked\n'
-                                              'Goodreads editions (if available) to exclude audiobook editions.\n'
+                                              'Shelfari editions (if available) to exclude audiobook editions.\n'
                                               'Without this enabled you will get a faster search, using the "best".\n'
-                                              'edition ranked by Goodreads which can in some cases be an audiobook.')
+                                              'edition ranked by Shelfari which can in some cases be an audiobook.')
         self.get_editions_checkbox.setChecked(c[KEY_GET_EDITIONS])
         other_group_box_layout.addWidget(self.get_editions_checkbox)
         self.all_authors_checkbox = QCheckBox('Get all contributing authors (e.g. illustrators, series editors etc)', self)
-        self.all_authors_checkbox.setToolTip('Goodreads for some books will list all of the contributing authors and\n'
+        self.all_authors_checkbox.setToolTip('Shelfari for some books will list all of the contributing authors and\n'
                                               'the type of contribution like (Editor), (Illustrator) etc.\n\n'
                                               'When this option is checked, all contributing authors are retrieved.\n\n'
                                               'When unchecked (default) only the primary author(s) are returned which\n'
                                               'are those that either have no contribution type specified, or have the\n'
-                                              'value of (Goodreads Author).\n\n'
+                                              'value of (Shelfari Author).\n\n'
                                               'If there is no primary author then only those with the same contribution\n'
                                               'type as the first author are returned.\n'
                                               'e.g. "A, B (Illustrator)" will return author A\n'
-                                              'e.g. "A (Goodreads Author)" will return author A\n'
+                                              'e.g. "A (Shelfari Author)" will return author A\n'
                                               'e.g. "A (Editor), B (Editor), C (Illustrator)" will return authors A & B\n'
                                               'e.g. "A (Editor), B (Series Editor)" will return author A\n')
         self.all_authors_checkbox.setChecked(c[KEY_GET_ALL_AUTHORS])
@@ -259,7 +289,7 @@ class ConfigWidget(DefaultConfigWidget):
 
     def add_mapping(self):
         new_genre_name, ok = QInputDialog.getText(self, 'Add new mapping',
-                    'Enter a Goodreads genre name to create a mapping for:', text='')
+                    'Enter a Shelfari genre name to create a mapping for:', text='')
         if not ok:
             # Operation cancelled
             return
@@ -290,7 +320,7 @@ class ConfigWidget(DefaultConfigWidget):
         if not selected_genre:
             return
         new_genre_name, ok = QInputDialog.getText(self, 'Add new mapping',
-                    'Enter a Goodreads genre name to create a mapping for:', text=selected_genre)
+                    'Enter a Shelfari genre name to create a mapping for:', text=selected_genre)
         if not ok:
             # Operation cancelled
             return
