@@ -39,6 +39,8 @@ from calibre.ebooks.metadata.sources.base import Source
 from calibre.utils.icu import lower
 from calibre.utils.cleantext import clean_ascii_chars
 
+from calibre_plugins.shelfari.worker import Worker
+
 __author__ = "Casey Duquette"
 __copyright__ = "Copyright 2013"
 __credits__ = ["Grant Drake <grant.drake@gmail.com>"]
@@ -81,29 +83,40 @@ class Shelfari(Source):
             return ('shelfari', shelfari_id,
                     '%s/books/%s' % (Shelfari.BASE_URL, shelfari_id))
 
-    def create_query(self, log, title=None, authors=None, identifiers={}):
-
+    def _create_query(self, log, title=None, authors=None, identifiers={}):
+        """ Generates the search url to use to find the book """
         isbn = check_isbn(identifiers.get('isbn', None))
-        q = ''
+        q = []
         if isbn is not None:
-            q = 'search_type=books&search[query]=' + isbn
-        elif title or authors:
-            tokens = []
+            # do isbn search
+            q.append('Isbn=' + isbn)
+            
+        if title or authors:
+            # do title and or author based search
+            
+            # tokenize the author and title fields from the current metadata
             title_tokens = list(self.get_title_tokens(title,
                                 strip_joiners=False, strip_subtitle=True))
-            tokens += title_tokens
             author_tokens = self.get_author_tokens(authors,
                     only_first_author=True)
-            tokens += author_tokens
-            tokens = [quote(t.encode('utf-8') if isinstance(t, unicode) else t) for t in tokens]
-            q = '+'.join(tokens)
-            q = 'search_type=books&search[query]=' + q
+            
+            # sanitize the title and author info before sending
+            title_tokens = [quote(t.encode('utf-8') if isinstance(t, unicode) else t) for t in title_tokens]
+            author_tokens = [quote(t.encode('utf-8') if isinstance(t, unicode) else t) for t in author_tokens]
+            
+            # build the query from the tokens
+            if len(title_tokens):
+                q.append("Title={0}".format('+'.join(title_tokens)))
+            if len(author_tokens):
+                q.append("Author={0}".format('+'.join(author_tokens)))
+            
+            q = '&'.join(q)
 
         if not q:
             return None
         if isinstance(q, unicode):
             q = q.encode('utf-8')
-        return Shelfari.BASE_URL + '/search?' + q
+        return Shelfari.BASE_URL + '/search/books?' + q
 
     def get_cached_cover_url(self, identifiers):
         url = None
@@ -120,8 +133,9 @@ class Shelfari(Source):
     def identify(self, log, result_queue, abort, title=None, authors=None,
             identifiers={}, timeout=30):
         '''
-        Note this method will retry without identifiers automatically if no
-        match is found with identifiers.
+        .. note::
+            this method will retry without identifiers automatically if no
+            match is found with identifiers.
         '''
         matches = []
         # Unlike the other metadata sources, if we have a shelfari id then we
@@ -131,9 +145,9 @@ class Shelfari(Source):
         isbn = check_isbn(identifiers.get('isbn', None))
         br = self.browser
         if shelfari_id:
-            matches.append('%s/book/show/%s' % (Shelfari.BASE_URL, shelfari_id))
+            matches.append('%s/books/%s' % (Shelfari.BASE_URL, shelfari_id))
         else:
-            query = self.create_query(log, title=title, authors=authors,
+            query = self._create_query(log, title=title, authors=authors,
                     identifiers=identifiers)
             if query is None:
                 log.error('Insufficient metadata to construct query')
@@ -146,7 +160,7 @@ class Shelfari(Source):
                     # If we did, will use the url.
                     # If we didn't then treat it as no matches on Shelfari
                     location = response.geturl()
-                    if '/book/show/' in location:
+                    if '/search/' not in location:
                         log.info('ISBN match location: %r' % location)
                         matches.append(location)
             except Exception as e:
@@ -177,21 +191,17 @@ class Shelfari(Source):
             return
 
         if not matches:
-            if identifiers and title and authors:
-                log.info('No matches found with identifiers, retrying using only'
-                        ' title and authors')
-                return self.identify(log, result_queue, abort, title=title,
-                        authors=authors, timeout=timeout)
+            # If there's no matches, normally we would try to query with less info, but shelfari's search is already fuzzy
             log.error('No matches found with query: %r' % query)
             return
 
-        from calibre_plugins.shelfari.worker import Worker
+        # Setup worker threads to look more thoroughly at matching books to extract information
         workers = [Worker(url, result_queue, br, log, i, self) for i, url in
                 enumerate(matches)]
 
+        # Start the workers and stagger them so we don't hammer shelfari :)
         for w in workers:
             w.start()
-            # Don't send all requests at the same time
             time.sleep(0.1)
 
         while not abort.is_set():
