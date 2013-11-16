@@ -1,0 +1,14 @@
+language: python
+python:
+  - "2.7"
+before_install:
+ - sudo apt-get update -qq
+ - sudo apt-get install -qq python-devel python-sip qt-sdk python-qt4
+# command to install dependencies
+install: "pip install -r requirements.txt"
+# command to run tests
+script: nosetests
+notifications:
+  email:
+    recipients:
+      - casey.duquette@gmail.com
