@@ -27,6 +27,10 @@
 from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
+# Add the calibre submdule to the path
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'calibre', 'src'))
+
 import time
 from urllib import quote
 from Queue import Queue, Empty

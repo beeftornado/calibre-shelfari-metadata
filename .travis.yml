@@ -4,10 +4,9 @@ python:
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq python-devel python-sip qt-sdk python-qt4
-# command to install dependencies
+ - git submodule update --init --recursive
 install: "pip install -r requirements.txt"
-# command to run tests
-script: nosetests
+script: nosetests -w src/shelfari
 notifications:
   email:
     recipients:

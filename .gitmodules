@@ -1,0 +1,3 @@
+[submodule "src/calibre"]
+	path = src/calibre
+	url = git://github.com/kovidgoyal/calibre.git
