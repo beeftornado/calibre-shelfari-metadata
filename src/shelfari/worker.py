@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# vim:fileencoding=UTF-8:ts=4:sw=4:sta:et:sts=4:ai
 
 # The MIT License (MIT)
 
@@ -27,7 +28,7 @@
 from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
-# Add the calibre submdule to the path
+# Add the calibre submodule to the path
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'calibre', 'src'))
 
@@ -52,13 +53,13 @@ __license__ = "MIT"
 __version__ = ""
 __maintainer__ = "Casey Duquette"
 __email__ = ""
-__url__ = "http://github.com/beeftornado/"
+__url__ = "https://github.com/beeftornado/calibre-shelfari-metadata"
 
 
 class Worker(Thread): # Get details
 
     '''
-    Get book details from Goodreads book page in a separate thread
+    Get book details from Shelfari book page in a separate thread
     '''
 
     def __init__(self, url, result_queue, browser, log, relevance, plugin, timeout=20):
@@ -68,7 +69,7 @@ class Worker(Thread): # Get details
         self.log, self.timeout = log, timeout
         self.relevance, self.plugin = relevance, plugin
         self.browser = browser.clone_browser()
-        self.cover_url = self.goodreads_id = self.isbn = None
+        self.cover_url = self.shelfari_id = self.isbn = None
 
         lm = {
                 'eng': ('English', 'Englisch'),
@@ -93,7 +94,7 @@ class Worker(Thread): # Get details
 
     def get_details(self):
         try:
-            self.log.info('Goodreads book url: %r'%self.url)
+            self.log.info('Shelfari book url: %r'%self.url)
             raw = self.browser.open_novisit(self.url, timeout=self.timeout).read().strip()
         except Exception as e:
             if callable(getattr(e, 'getcode', None)) and \
@@ -103,7 +104,7 @@ class Worker(Thread): # Get details
             attr = getattr(e, 'args', [None])
             attr = attr if attr else [None]
             if isinstance(attr[0], socket.timeout):
-                msg = 'Goodreads timed out. Try again later.'
+                msg = 'Shelfari timed out. Try again later.'
                 self.log.error(msg)
             else:
                 msg = 'Failed to make details query: %r'%self.url
@@ -111,7 +112,7 @@ class Worker(Thread): # Get details
             return
 
         raw = raw.decode('utf-8', errors='replace')
-        #open('c:\\goodreads.html', 'wb').write(raw)
+        #open('c:\\shelfari.html', 'wb').write(raw)
 
         if '<title>404 - ' in raw:
             self.log.error('URL malformed: %r'%self.url)
@@ -120,7 +121,7 @@ class Worker(Thread): # Get details
         try:
             root = fromstring(clean_ascii_chars(raw))
         except:
-            msg = 'Failed to parse goodreads details page: %r'%self.url
+            msg = 'Failed to parse shelfari details page: %r'%self.url
             self.log.exception(msg)
             return
 
@@ -131,17 +132,17 @@ class Worker(Thread): # Get details
             title_node = root.xpath('//title')
             if title_node:
                 page_title = title_node[0].text_content().strip()
-                if page_title is None or page_title.find('search results for') != -1:
+                if page_title is None:
                     self.log.error('Failed to see search results in page title: %r'%self.url)
                     return
         except:
-            msg = 'Failed to read goodreads page title: %r'%self.url
+            msg = 'Failed to read shelfari page title: %r'%self.url
             self.log.exception(msg)
             return
 
         errmsg = root.xpath('//*[@id="errorMessage"]')
         if errmsg:
-            msg = 'Failed to parse goodreads details page: %r'%self.url
+            msg = 'Failed to parse shelfari details page: %r'%self.url
             msg += tostring(errmsg, method='text', encoding=unicode).strip()
             self.log.error(msg)
             return
@@ -150,10 +151,10 @@ class Worker(Thread): # Get details
 
     def parse_details(self, root):
         try:
-            goodreads_id = self.parse_goodreads_id(self.url)
+            shelfari_id = self.parse_shelfari_id(self.url)
         except:
-            self.log.exception('Error parsing goodreads id for url: %r'%self.url)
-            goodreads_id = None
+            self.log.exception('Error parsing shelfari id for url: %r'%self.url)
+            shelfari_id = None
 
         try:
             (title, series, series_index) = self.parse_title_series(root)
@@ -167,9 +168,9 @@ class Worker(Thread): # Get details
             self.log.exception('Error parsing authors for url: %r'%self.url)
             authors = []
 
-        if not title or not authors or not goodreads_id:
-            self.log.error('Could not find title/authors/goodreads id for %r'%self.url)
-            self.log.error('Goodreads: %r Title: %r Authors: %r'%(goodreads_id, title,
+        if not title or not authors or not shelfari_id:
+            self.log.error('Could not find title/authors/shelfari id for %r'%self.url)
+            self.log.error('Shelfari: %r Title: %r Authors: %r'%(shelfari_id, title,
                 authors))
             return
 
@@ -177,8 +178,8 @@ class Worker(Thread): # Get details
         if series:
             mi.series = series
             mi.series_index = series_index
-        mi.set_identifier('goodreads', goodreads_id)
-        self.goodreads_id = goodreads_id
+        mi.set_identifier('shelfari', shelfari_id)
+        self.shelfari_id = shelfari_id
 
         try:
             isbn = self.parse_isbn(root)
@@ -224,119 +225,66 @@ class Worker(Thread): # Get details
 
         mi.source_relevance = self.relevance
 
-        if self.goodreads_id:
+        if self.shelfari_id:
             if self.isbn:
-                self.plugin.cache_isbn_to_identifier(self.isbn, self.goodreads_id)
+                self.plugin.cache_isbn_to_identifier(self.isbn, self.shelfari_id)
             if self.cover_url:
-                self.plugin.cache_identifier_to_cover_url(self.goodreads_id,
+                self.plugin.cache_identifier_to_cover_url(self.shelfari_id,
                         self.cover_url)
 
         self.plugin.clean_downloaded_metadata(mi)
 
         self.result_queue.put(mi)
 
-    def parse_goodreads_id(self, url):
-        return re.search('/show/(\d+)', url).groups(0)[0]
+    def parse_shelfari_id(self, url):
+        return re.search('/books/(\d+)', url).groups(0)[0]
 
     def parse_title_series(self, root):
-        title_node = root.xpath('//div[@id="metacol"]/h1[@id="bookTitle"]')
+        # Default values
+        title_text, series_text, book_year, book_number = (None,)*4
+        
+        # Get the title from the source
+        title_node = root.xpath('//h1[@class="hover_title"]')
         if not title_node:
             return (None, None, None)
         title_text = title_node[0].text_content().strip()
-        if title_text.find('(') == -1:
+        
+        # The book title may have a year in it, we can split that out
+        match = re.search('\((\d{4})\)$', title_text)
+        if match:
+            book_year = match.groups(0)
+            title_text = re.sub('\((\d{4})\)$', '', title_text).strip()
+            
+        # Find the series if the book is a part of one
+        series_node = root.xpath('//span[@class="series"]')
+        if not series_node:
             return (title_text, None, None)
-        # Contains a Title and possibly a series. Possible values currently handled:
-        # "Some title (Omnibus)"
-        # "Some title (#1-3)"
-        # "Some title (Series #1)"
-        # "Some title (Series (digital) #1)"
-        # "Some title (Series #1-5)"
-        # "Some title (NotSeries #2008 Jan)"
-        # "Some title (Omnibus) (Series #1)"
-        # "Some title (Omnibus) (Series (digital) #1)"
-        # "Some title (Omnibus) (Series (digital) #1-5)"
-        text_split = title_text.rpartition('(')
-        title = text_split[0]
-        series_info = text_split[2]
-        hash_pos = series_info.find('#')
-        if hash_pos <= 0:
-            # Cannot find the series # in expression or at start like (#1-7)
-            # so consider whole thing just as title
-            title = title_text
-            series_info = ''
-        else:
-            # Check to make sure we have got all of the series information
-            series_info = series_info[:len(series_info)-1] #Strip off trailing ')'
-            while series_info.count(')') != series_info.count('('):
-                title_split = title.rpartition('(')
-                title = title_split[0].strip()
-                series_info = title_split[2] + '(' + series_info
-        if series_info:
-            series_partition = series_info.rpartition('#')
-            series_name = series_partition[0].strip()
-            if series_name.endswith(','):
-                series_name = series_name[:-1]
-            series_index = series_partition[2].strip()
-            if series_index.find('-'):
-                # The series is specified as 1-3, 1-7 etc.
-                # In future we may offer config options to decide what to do,
-                # such as "Use start number", "Use value xxx" like 0 etc.
-                # For now will just take the start number and use that
-                series_index = series_index.partition('-')[0].strip()
-            try:
-                return (title.strip(), series_name, float(series_index))
-            except ValueError:
-                # We have a series index which isn't really a series index
-                title = title_text
-        return (title.strip(), None, None)
+        series_text = series_node[0].text_content().strip()
+        
+        # Series text may or may not have a book number, let's see if it's there
+        match = re.search(': Book (\d+)', series_text)
+        if match:
+            book_number = match.groups(0)
+            series_text = re.sub(': Book (\d+)', '', series_text).strip()
+        
+        return (title_text, series_text, book_number)
 
     def parse_authors(self, root):
         # Build a dict of authors with their contribution if any in values
-        div_authors = root.xpath('//div[@id="metacol"]/div[@id="bookAuthors"]')
+        div_authors = root.xpath('//div[@id="WikiModule_Contributors"]//ol/li')
         if not div_authors:
             return
-        authors_html = tostring(div_authors[0], method='text', encoding=unicode).replace('\n','').strip()
-        if authors_html.startswith('by'):
-            authors_html = authors_html[2:]
-        authors_type_map = OrderedDict()
-        for a in authors_html.split(','):
-            author = a.strip()
-            if author.startswith('more…'):
-                author = author[5:]
-            elif author.endswith('…less'):
-                author = author[:-5]
-            author_parts = author.strip().split('(')
-            if len(author_parts) == 1:
-                authors_type_map[author_parts[0]] = ''
-            else:
-                authors_type_map[author_parts[0]] = author_parts[1][:-1]
-        # User either requests all authors, or only the primary authors (latter is the default)
-        # If only primary authors, only bring them in if:
-        # 1. They have no author type specified
-        # 2. They have an author type of 'Goodreads Author'
-        # 3. There are no authors from 1&2 and they have an author type of 'Editor'
-        get_all_authors = cfg.plugin_prefs[cfg.STORE_NAME][cfg.KEY_GET_ALL_AUTHORS]
         authors = []
-        valid_contrib = None
-        for a, contrib in authors_type_map.iteritems():
-            if get_all_authors:
-                authors.append(a)
-            else:
-                if not contrib or contrib == 'Goodreads Author':
-                    authors.append(a)
-                elif len(authors) == 0:
-                    authors.append(a)
-                    valid_contrib = contrib
-                elif contrib == valid_contrib:
-                    authors.append(a)
-                else:
-                    break
+        for li in div_authors:
+            li_text = li.text_content()
+            author = re.sub('\s*\([\w\s]*\)', '', li_text).strip()
+            authors.append(author)
         return authors
 
     def parse_rating(self, root):
-        rating_node = root.xpath('//div[@id="metacol"]/div[@id="bookMeta"]/span[@class="value rating"]/span')
+        rating_node = root.xpath('//ul[@class=rating]/li[@class="current"]')
         if rating_node:
-            rating_text = tostring(rating_node[0], method='text', encoding=unicode)
+            rating_text = rating_node[0].text_content()
             rating_text = re.sub('[^0-9]', '', rating_text)
             rating_value = float(rating_text)
             if rating_value >= 100:
@@ -344,13 +292,9 @@ class Worker(Thread): # Get details
             return rating_value
 
     def parse_comments(self, root):
-        # Look for description in a second span that gets expanded when interactively displayed [@id="display:none"]
-        description_node = root.xpath('//div[@id="metacol"]/div[@id="description"]/span')
+        description_node = root.xpath('//div[@class="ugc nonTruncatedSum"]/p')
         if description_node:
-            desc = description_node[0] if len(description_node) == 1 else description_node[1]
-            less_link = desc.xpath('a[@class="actionLinkLite"]')
-            if less_link is not None and len(less_link):
-                desc.remove(less_link[0])
+            desc = description_node[0]
             comments = tostring(desc, method='html', encoding=unicode).strip()
             while comments.find('  ') >= 0:
                 comments = comments.replace('  ',' ')
@@ -358,73 +302,36 @@ class Worker(Thread): # Get details
             return comments
 
     def parse_cover(self, root):
-        imgcol_node = root.xpath('//div[@class="bookCoverPrimary"]/a/img/@src')
+        imgcol_node = root.xpath('//div[@id="BookMasterImage"]//img/@src')
         if imgcol_node:
             img_url = imgcol_node[0]
-            # Unfortunately Goodreads sometimes have broken links so we need to do
-            # an additional request to see if the URL actually exists
-            info = self.browser.open_novisit(img_url, timeout=self.timeout).info()
-            if int(info.getheader('Content-Length')) > 1000:
-                return img_url
-            else:
-                self.log.warning('Broken image for url: %s'%img_url)
+            return img_url
 
     def parse_isbn(self, root):
-        isbn_node = root.xpath('//div[@id="metacol"]/div[@id="details"]/div[@class="buttons"]/div[@id="bookDataBox"]/div[2]/div')
+        isbn_node = root.xpath('//acronym[@title="International Standard Book Number"]')
         if isbn_node:
-            id_type = tostring(isbn_node[0], method='text', encoding=unicode).strip()
-            if id_type == 'ISBN':
-                isbn10_data = tostring(isbn_node[1], method='text', encoding=unicode).strip()
-                isbn13_pos = isbn10_data.find('ISBN13:')
-                if isbn13_pos == -1:
-                    return isbn10_data[:10]
-                else:
-                    return isbn10_data[isbn13_pos+8:isbn13_pos+21]
-            elif id_type == 'ISBN13':
-                # We have just an ISBN13, without an ISBN10
-                return tostring(isbn_node[1], method='text', encoding=unicode).strip()
+            isbn_text = isbn_node[0].text_content()
+            isbn_text = re.sub('[^0-9]', '', isbn_text).strip()
+            return isbn_text
 
     def parse_publisher_and_date(self, root):
         publisher = None
         pub_date = None
-        publisher_node = root.xpath('//div[@id="metacol"]/div[@id="details"]/div[2]')
-        if publisher_node:
-            # Publisher is specified within the div above with variations of:
-            #  Published December 2003 by Books On Tape <nobr class="greyText">(first published 1982)</nobr>
-            #  Published June 30th 2010
-            # Note that the date could be "2003", "December 2003" or "December 10th 2003"
-            publisher_node_text = tostring(publisher_node[0], method='text', encoding=unicode)
-            # See if we can find the publisher name
-            pub_text_parts = publisher_node_text.partition(' by ')
-            if pub_text_parts[2]:
-                publisher = pub_text_parts[2].strip()
-                if '(first' in publisher:
-                    # The publisher name is followed by (first published xxx) so strip that off
-                    publisher = publisher.rpartition('(first')[0].strip()
-
-            # Now look for the pubdate. There should always be one at start of the string
-            pubdate_text_match = re.search('Published[\n\s]*([\w\s]+)', pub_text_parts[0].strip())
-            pubdate_text = None
-            if pubdate_text_match is not None:
-                pubdate_text = pubdate_text_match.groups(0)[0]
-            # If we have a first published section of text use that for the date.
-            if '(first' in publisher_node_text:
-                # For the publication date we will use first published date
-                # Note this date could be just a year, or it could be monthname year
-                pubdate_text_match = re.search('.*\(first published ([\w\s]+)', publisher_node_text)
-                if pubdate_text_match is not None:
-                    first_pubdate_text = pubdate_text_match.groups(0)[0]
-                    if pubdate_text and first_pubdate_text[-4:] == pubdate_text[-4:]:
-                        # We have same years, use the first date as it could be more accurate
-                        pass
-                    else:
-                        pubdate_text = first_pubdate_text
-            if pubdate_text:
-                pub_date = self._convert_date_text(pubdate_text)
+        edition_node = root.xpath('//div[@id="WikiModule_FirstEdition"]//div')
+        if edition_node:
+            for div in edition_node:
+                if 'Publisher' in div.text_content():
+                    match = re.search('Publisher: ([\w\s]+)', div).strip()
+                    if match:
+                        publisher = match.groups(0).strip()
+            
+                if None and pubdate_text:
+                    pub_date = self._convert_date_text(pubdate_text)
         return (publisher, pub_date)
 
     def parse_tags(self, root):
-        # Goodreads does not have "tags", but it does have Genres (wrapper around popular shelves)
+        return None
+        # Shelfari does not have "tags", but it does have Genres (wrapper around popular shelves)
         # We will use those as tags (with a bit of massaging)
         genres_node = root.xpath('//div[@class="stacked"]/div/div/div[contains(@class, "bigBoxContent")]/div/div[@class="left"]')
         #self.log.info("Parsing tags")
@@ -463,7 +370,7 @@ class Worker(Thread): # Get details
             text_parts = date_text[:len(date_text)-5].partition(' ')
             month_name = text_parts[0]
             # Need to convert the month name into a numeric value
-            # For now I am "assuming" the Goodreads website only displays in English
+            # For now I am "assuming" the Shelfari website only displays in English
             # If it doesn't will just fallback to assuming January
             month_dict = {"January":1, "February":2, "March":3, "April":4, "May":5, "June":6,
                 "July":7, "August":8, "September":9, "October":10, "November":11, "December":12}

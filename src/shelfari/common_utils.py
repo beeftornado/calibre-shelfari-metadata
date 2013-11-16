@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# vim:fileencoding=UTF-8:ts=4:sw=4:sta:et:sts=4:ai
 
 # The MIT License (MIT)
 
@@ -27,7 +28,7 @@
 from __future__ import (unicode_literals, division, absolute_import,
                         print_function)
 
-# Add the calibre submdule to the path
+# Add the calibre submodule to the path
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'calibre', 'src'))
 
@@ -58,7 +59,7 @@ __license__ = "MIT"
 __version__ = ""
 __maintainer__ = "Casey Duquette"
 __email__ = ""
-__url__ = "http://github.com/beeftornado/"
+__url__ = "https://github.com/beeftornado/calibre-shelfari-metadata"
 
 
 # Global definition of our plugin name. Used for common functions that require this.
