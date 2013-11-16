@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/beeftornado/calibre-shelfari-metadata.png?branch=master)](https://travis-ci.org/beeftornado/calibre-shelfari-metadata)
+
 calibre-shelfari-metadata
 =========================
 
